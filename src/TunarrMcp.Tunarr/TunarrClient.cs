@@ -21,6 +21,14 @@ public sealed class TunarrClient(HttpClient http)
     public async Task<IReadOnlyDictionary<string, HealthCheckResult>> GetHealthAsync(CancellationToken ct = default) =>
         await GetAsync<Dictionary<string, HealthCheckResult>>("system/health", ct).ConfigureAwait(false);
 
+    /// <summary>GET /tasks</summary>
+    public async Task<IReadOnlyList<TunarrTask>> GetTasksAsync(CancellationToken ct = default) =>
+        await GetAsync<List<TunarrTask>>("tasks", ct).ConfigureAwait(false);
+
+    /// <summary>GET /guide/status</summary>
+    public Task<GuideStatus> GetGuideStatusAsync(CancellationToken ct = default) =>
+        GetAsync<GuideStatus>("guide/status", ct);
+
     private async Task<T> GetAsync<T>(string path, CancellationToken ct)
     {
         using var response = await http.GetAsync(new Uri(path, UriKind.Relative), ct).ConfigureAwait(false);
