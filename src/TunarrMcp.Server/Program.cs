@@ -1,4 +1,8 @@
+using TunarrMcp.Server.Configuration;
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddSecretFiles();
+builder.Services.AddTunarrMcpOptions();
 
 var app = builder.Build();
 

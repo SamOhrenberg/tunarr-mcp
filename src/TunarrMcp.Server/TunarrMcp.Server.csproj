@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- Local overrides such as your own Tunarr URL: dotnet user-secrets set "Tunarr:BaseUrl" "http://host:8001/api/" -->
+    <UserSecretsId>tunarr-mcp-server</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\TunarrMcp.Tunarr\TunarrMcp.Tunarr.csproj" />
   </ItemGroup>

@@ -1,9 +1,8 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TunarrMcp.Tests.Unit;
 
-public sealed class HealthTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthTests(TestAppFactory factory) : IClassFixture<TestAppFactory>
 {
     [Fact]
     public async Task Healthz_returns_ok()
