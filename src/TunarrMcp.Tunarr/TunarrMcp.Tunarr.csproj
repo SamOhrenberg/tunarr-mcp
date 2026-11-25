@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Typed client for Tunarr's REST API. Kept separate so it can be regenerated and tested without touching the tools. -->
+
+</Project>

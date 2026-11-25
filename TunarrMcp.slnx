@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TunarrMcp.Server/TunarrMcp.Server.csproj" />
+    <Project Path="src/TunarrMcp.Tunarr/TunarrMcp.Tunarr.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TunarrMcp.Tests.Unit/TunarrMcp.Tests.Unit.csproj" />
+  </Folder>
+</Solution>
