@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TunarrMcp.Tests.Unit;
@@ -16,6 +17,16 @@ public sealed class TestAppFactory : WebApplicationFactory<Program>
     }
 }
 
+/// <summary>The admin credentials every Embedded-mode test signs in with.</summary>
+internal static class TestAdmin
+{
+    public const string User = "admin";
+    public const string Password = "correct horse battery staple";
+    public const string TotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"; // 160 bits
+
+    public static readonly string PasswordHash = new PasswordHasher<object>().HashPassword(new object(), Password);
+}
+
 internal static class TestAppFactoryExtensions
 {
     /// <summary>The app in Auth:Mode=Embedded, with its SQLite database and keys in <paramref name="dataPath"/>.</summary>
@@ -24,9 +35,9 @@ internal static class TestAppFactoryExtensions
         {
             b.UseSetting("Auth:Mode", "Embedded");
             b.UseSetting("Auth:AllowInsecureNone", "false");
-            b.UseSetting("Auth:AdminUser", "admin");
-            b.UseSetting("Auth:AdminPasswordHash", "test-hash");
-            b.UseSetting("Auth:TotpSecret", "JBSWY3DPEHPK3PXP");
+            b.UseSetting("Auth:AdminUser", TestAdmin.User);
+            b.UseSetting("Auth:AdminPasswordHash", TestAdmin.PasswordHash);
+            b.UseSetting("Auth:TotpSecret", TestAdmin.TotpSecret);
             b.UseSetting("Data:Path", dataPath);
         });
 }

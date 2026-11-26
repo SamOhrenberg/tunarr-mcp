@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Microsoft.Extensions.Options;
 
@@ -57,8 +58,12 @@ internal sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
         {
             case AuthMode.Embedded:
                 Require(result, options.AdminUser, $"{S}:{nameof(AuthOptions.AdminUser)}");
-                Require(result, options.AdminPasswordHash, $"{S}:{nameof(AuthOptions.AdminPasswordHash)}(File)");
-                Require(result, options.TotpSecret, $"{S}:{nameof(AuthOptions.TotpSecret)}(File)");
+                if (Require(result, options.AdminPasswordHash, $"{S}:{nameof(AuthOptions.AdminPasswordHash)}(File)")
+                    && !AdminCredentialFormats.IsPasswordHash(options.AdminPasswordHash))
+                    result.AddError($"{S}:{nameof(AuthOptions.AdminPasswordHash)} is not a password hash. Run the 'setup' command to generate one.");
+                if (Require(result, options.TotpSecret, $"{S}:{nameof(AuthOptions.TotpSecret)}(File)")
+                    && !AdminCredentialFormats.IsTotpSecret(options.TotpSecret))
+                    result.AddError($"{S}:{nameof(AuthOptions.TotpSecret)} must be base32 and at least {AdminCredentialFormats.MinTotpSecretBytes * 8} bits. Run the 'setup' command to generate one.");
                 break;
 
             case AuthMode.ExternalOidc:
@@ -81,10 +86,37 @@ internal sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
         return result.Build();
     }
 
-    private static void Require(ValidateOptionsResultBuilder result, string? value, string key)
+    private static bool Require(ValidateOptionsResultBuilder result, [NotNullWhen(true)] string? value, string key)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            result.AddError($"{key} is required in Embedded mode. Run the 'setup' command to generate it.");
+        if (!string.IsNullOrWhiteSpace(value))
+            return true;
+
+        result.AddError($"{key} is required in Embedded mode. Run the 'setup' command to generate it.");
+        return false;
+    }
+}
+
+internal static class AdminCredentialFormats
+{
+    public const int MinTotpSecretBytes = 16;
+
+    /// <summary>ASP.NET Core Identity's PasswordHasher v3 format: base64, first byte 0x01.</summary>
+    public static bool IsPasswordHash(string value)
+    {
+        var bytes = new byte[value.Length];
+        return Convert.TryFromBase64String(value, bytes, out var length) && length > 13 && bytes[0] == 0x01;
+    }
+
+    public static bool IsTotpSecret(string value)
+    {
+        try
+        {
+            return OtpNet.Base32Encoding.ToBytes(value).Length >= MinTotpSecretBytes;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }
 

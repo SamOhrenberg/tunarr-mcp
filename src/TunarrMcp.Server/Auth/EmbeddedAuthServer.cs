@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -55,19 +56,37 @@ internal static class EmbeddedAuthServer
         services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, ConfigureServer>();
         services.AddSingleton<IConfigureOptions<OpenIddictServerAspNetCoreOptions>, ConfigureServerAspNetCore>();
 
+        // Login and consent: admin session cookie, CSRF tokens, credential check, per-IP rate limit.
+        services.AddAuthentication().AddCookie(AdminCookie.Scheme, AdminCookie.Configure);
+        services.AddAuthorization();
+        services.AddAntiforgery(o =>
+        {
+            o.Cookie.Name = "tunarr_mcp_csrf";
+            o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
+        services.AddSingleton<AdminLogin>();
+        services.AddRateLimiter(o =>
+        {
+            o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            o.AddPolicy(AuthEndpoints.LoginRateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        });
+
         return services;
     }
 
-    /// <summary>Creates the database (and data directory) if missing. Call once at startup, before serving.</summary>
-    public static async Task InitializeAuthStoreAsync(this WebApplication app)
+    /// <summary>Creates the store, then adds the auth middleware and the login, consent and token endpoints.</summary>
+    public static async Task UseEmbeddedAuthServerAsync(this WebApplication app)
     {
-        if (app.Services.GetService<IServiceProviderIsService>()?.IsService(typeof(AuthDbContext)) != true)
-            return; // not Embedded mode
-
         Directory.CreateDirectory(app.Services.GetRequiredService<IOptions<DataOptions>>().Value.Path);
+        await using (var scope = app.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.EnsureCreatedAsync().ConfigureAwait(false);
 
-        await using var scope = app.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.EnsureCreatedAsync().ConfigureAwait(false);
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.UseRateLimiter();
+        app.MapEmbeddedAuthEndpoints();
     }
 
     private sealed class ConfigureServer(IOptions<McpOptions> mcp, IOptions<DataOptions> data) : IConfigureOptions<OpenIddictServerOptions>

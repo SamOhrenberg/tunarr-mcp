@@ -122,6 +122,35 @@ public sealed class OptionsValidationTests
     }
 
     [Fact]
+    public void Embedded_rejects_malformed_credentials()
+    {
+        var message = Fails<AuthOptions>(new()
+        {
+            ["Auth:Mode"] = "Embedded",
+            ["Auth:AdminUser"] = "admin",
+            ["Auth:AdminPasswordHash"] = "hunter2",        // a password, not a hash
+            ["Auth:TotpSecret"] = "JBSWY3DPEHPK3PXP",      // valid base32, but only 80 bits
+        });
+
+        Assert.Contains("Auth:AdminPasswordHash is not a password hash", message, StringComparison.Ordinal);
+        Assert.Contains("Auth:TotpSecret must be base32 and at least 128 bits", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Embedded_accepts_generated_credentials()
+    {
+        var auth = Get<AuthOptions>(new()
+        {
+            ["Auth:Mode"] = "Embedded",
+            ["Auth:AdminUser"] = TestAdmin.User,
+            ["Auth:AdminPasswordHash"] = TestAdmin.PasswordHash,
+            ["Auth:TotpSecret"] = TestAdmin.TotpSecret,
+        });
+
+        Assert.Equal(AuthMode.Embedded, auth.Mode);
+    }
+
+    [Fact]
     public void External_oidc_requires_https_authority()
     {
         var message = Fails<AuthOptions>(new() { ["Auth:Mode"] = "ExternalOidc", ["Auth:Authority"] = "http://idp.example.com" });
