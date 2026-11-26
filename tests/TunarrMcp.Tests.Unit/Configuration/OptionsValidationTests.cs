@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Options;
 using TunarrMcp.Server.Configuration;
 
@@ -14,6 +16,8 @@ public sealed class OptionsValidationTests
         ["Auth:AllowInsecureNone"] = "true",
     };
 
+    private static readonly string ContentRoot = Path.Combine(Path.GetTempPath(), "content-root");
+
     private static T Get<T>(Dictionary<string, string?>? overrides = null) where T : class
     {
         var settings = new Dictionary<string, string?>(Valid);
@@ -22,6 +26,7 @@ public sealed class OptionsValidationTests
 
         var services = new ServiceCollection()
             .AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(settings).Build())
+            .AddSingleton<IHostEnvironment>(new HostingEnvironment { ContentRootPath = ContentRoot })
             .AddTunarrMcpOptions();
         using var provider = services.BuildServiceProvider();
         return provider.GetRequiredService<IOptions<T>>().Value;
@@ -35,7 +40,15 @@ public sealed class OptionsValidationTests
     {
         Assert.Equal(ToolsMode.Read, Get<ToolsOptions>().Mode);
         Assert.Equal(new Uri("http://tunarr:8000/api/"), Get<TunarrOptions>().BaseUrl);
-        Assert.Equal("/data", Get<DataOptions>().Path);
+        Assert.Equal(Path.GetFullPath("/data"), Get<DataOptions>().Path);
+    }
+
+    [Fact]
+    public void Relative_data_path_resolves_against_content_root()
+    {
+        var data = Get<DataOptions>(new() { ["Data:Path"] = "../.data" });
+
+        Assert.Equal(Path.GetFullPath(Path.Combine(ContentRoot, "..", ".data")), data.Path);
     }
 
     [Fact]

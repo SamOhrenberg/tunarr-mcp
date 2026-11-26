@@ -18,7 +18,13 @@ internal static class ConfigurationServiceCollectionExtensions
         services.AddOptions<McpOptions>().BindConfiguration(McpOptions.Section).ValidateOnStart();
         services.AddOptions<ToolsOptions>().BindConfiguration(ToolsOptions.Section).ValidateOnStart();
         services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.Section).ValidateOnStart();
-        services.AddOptions<DataOptions>().BindConfiguration(DataOptions.Section).ValidateOnStart();
+        services.AddOptions<DataOptions>().BindConfiguration(DataOptions.Section).ValidateOnStart()
+            .PostConfigure<IHostEnvironment>((o, env) =>
+            {
+                // Relative paths (handy in development) resolve against the content root, not the working directory.
+                if (!string.IsNullOrWhiteSpace(o.Path))
+                    o.Path = Path.GetFullPath(o.Path, env.ContentRootPath);
+            });
         services.AddOptions<TunarrOptions>().BindConfiguration(TunarrOptions.Section).ValidateOnStart()
             .PostConfigure(o =>
             {

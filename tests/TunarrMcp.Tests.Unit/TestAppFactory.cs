@@ -15,3 +15,18 @@ public sealed class TestAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth:AllowInsecureNone", "true");
     }
 }
+
+internal static class TestAppFactoryExtensions
+{
+    /// <summary>The app in Auth:Mode=Embedded, with its SQLite database and keys in <paramref name="dataPath"/>.</summary>
+    public static WebApplicationFactory<Program> WithEmbeddedAuth(this WebApplicationFactory<Program> factory, string dataPath) =>
+        factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Auth:Mode", "Embedded");
+            b.UseSetting("Auth:AllowInsecureNone", "false");
+            b.UseSetting("Auth:AdminUser", "admin");
+            b.UseSetting("Auth:AdminPasswordHash", "test-hash");
+            b.UseSetting("Auth:TotpSecret", "JBSWY3DPEHPK3PXP");
+            b.UseSetting("Data:Path", dataPath);
+        });
+}

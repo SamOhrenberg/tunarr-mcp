@@ -2,7 +2,8 @@
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
   <PropertyGroup>
-    <!-- CA1707: underscores in test names (Method_does_thing) are intentional. -->
-    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <!-- CA1707: underscores in test names (Method_does_thing) are intentional.
+         CA1861: inline expected arrays in assertions read better than static fields. -->
+    <NoWarn>$(NoWarn);CA1707;CA1861</NoWarn>
   </PropertyGroup>
 </Project>
