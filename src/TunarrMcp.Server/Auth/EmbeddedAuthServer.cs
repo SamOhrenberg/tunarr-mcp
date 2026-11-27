@@ -56,6 +56,7 @@ internal static class EmbeddedAuthServer
             });
 
         services.AddClientRegistration();
+        services.AddMcpResourceProtection();
 
         // Issuer, resource and keys come from validated options, so they're applied here rather than above.
         services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, ConfigureServer>();
@@ -76,6 +77,9 @@ internal static class EmbeddedAuthServer
             o.AddPolicy(AuthEndpoints.LoginRateLimitPolicy, context => PerIp(context, permits: 5, TimeSpan.FromMinutes(1)));
             // Claude registers once per connector setup; this only stops someone filling the database.
             o.AddPolicy(DynamicClientRegistration.RateLimitPolicy, context => PerIp(context, permits: 10, TimeSpan.FromHours(1)));
+            o.AddPolicy(McpResourceProtection.RateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                McpResourceProtection.PartitionKey(context),
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
         });
 
         return services;

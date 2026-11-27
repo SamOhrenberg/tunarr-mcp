@@ -17,11 +17,14 @@ var app = builder.Build();
 app.MapHealthChecks("/healthz", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/healthz/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(TunarrHealthCheck.ReadyTag) });
 
-// Embedded mode: OAuth store, auth middleware, /login, /connect/authorize and /connect/token.
+// Origin check and optional IP allowlist on /mcp, in every auth mode.
+app.UseMcpRequestGuard();
+
+// Embedded mode: OAuth store, auth middleware, /login, /connect/*, /register, protected-resource metadata.
 await app.UseTunarrMcpAuthAsync();
 
-// Not yet authenticated: Auth:Mode=None only. OAuth protection lands before this is exposed.
-app.MapMcp(app.Services.GetRequiredService<IOptions<McpOptions>>().Value.Path);
+app.MapMcp(app.Services.GetRequiredService<IOptions<McpOptions>>().Value.Path)
+    .RequireMcpAuthorization(app.Configuration);
 
 await app.RunAsync();
 
