@@ -1,0 +1,18 @@
+# Weekly update PRs, so CI runs the tests against each new dependency before it lands.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      openiddict: { patterns: ["OpenIddict.*"] }
+      modelcontextprotocol: { patterns: ["ModelContextProtocol*"] }
+      microsoft: { patterns: ["Microsoft.*"] }
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: weekly }

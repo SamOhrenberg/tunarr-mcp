@@ -3,6 +3,8 @@
 # Build on the builder's own architecture and cross-compile for the target, so multi-arch builds don't need emulation.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 ARG TARGETARCH
+# Set by CI from the git tag (1.2.3), "edge" for main; reported as the MCP server version.
+ARG VERSION=0.0.0-dev
 WORKDIR /src
 
 # Restore from the project files alone, so this layer stays cached until dependencies change.
@@ -12,7 +14,8 @@ COPY src/TunarrMcp.Tunarr/TunarrMcp.Tunarr.csproj src/TunarrMcp.Tunarr/
 RUN dotnet restore src/TunarrMcp.Server -a $TARGETARCH
 
 COPY src/ src/
-RUN dotnet publish src/TunarrMcp.Server -c Release -a $TARGETARCH --no-restore -o /app /p:UseAppHost=false
+RUN dotnet publish src/TunarrMcp.Server -c Release -a $TARGETARCH --no-restore -o /app \
+    -p:UseAppHost=false -p:InformationalVersion=$VERSION
 
 # The data directory is created here (the runtime image has no shell) and handed to the app user below,
 # so a named volume mounted on it starts out writable.

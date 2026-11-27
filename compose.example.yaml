@@ -37,6 +37,7 @@ services:
       - tunarr-mcp-data:/data                 # SQLite, signing keys, data-protection keys
     networks: [default, proxy]
     # No ports: the reverse proxy reaches tunarr-mcp:8080 over the shared "proxy" network.
+    # If the proxy is a service in this same compose file, drop the "proxy" network: both are on "default".
 
 secrets:
   admin_password_hash:
