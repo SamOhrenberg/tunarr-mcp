@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup Label="Server">
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.1" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="11.0.1" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
     <PackageVersion Include="OpenIddict.Server.AspNetCore" Version="7.9.0" />
