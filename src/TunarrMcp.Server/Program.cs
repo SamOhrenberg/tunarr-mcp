@@ -1,11 +1,21 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using TunarrMcp.Server.Auth;
+using TunarrMcp.Server.Commands;
 using TunarrMcp.Server.Configuration;
 using TunarrMcp.Server.Hosting;
 
+// One-shot commands that run instead of the server.
+switch (args)
+{
+    case ["setup", .. var setupArgs]:
+        return SetupCommand.Run(setupArgs, new SystemConsole());
+    case ["--healthcheck", .. var healthArgs]:
+        return await HealthcheckCommand.RunAsync(healthArgs);
+}
+
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddSecretFiles();
+builder.Configuration.AddSecretFiles(builder.Environment.ContentRootPath);
 builder.Services.AddTunarrMcpOptions();
 builder.Services.AddTunarrClient();
 builder.Services.AddTunarrMcpServer(builder.Configuration);
@@ -27,6 +37,7 @@ app.MapMcp(app.Services.GetRequiredService<IOptions<McpOptions>>().Value.Path)
     .RequireMcpAuthorization(app.Configuration);
 
 await app.RunAsync();
+return 0;
 
 // Exposed so WebApplicationFactory<Program> can host the app in tests.
 public partial class Program;

@@ -18,7 +18,18 @@ public sealed class SecretFilesTests : IDisposable
         var path = Path.Combine(_dir, "totp_secret");
         File.WriteAllText(path, "JBSWY3DPEHPK3PXP\r\n");
 
-        var resolved = SecretFiles.Resolve(Config(new() { ["Auth:TotpSecretFile"] = path }));
+        var resolved = SecretFiles.Resolve(Config(new() { ["Auth:TotpSecretFile"] = path }), _dir);
+
+        Assert.Equal("JBSWY3DPEHPK3PXP", resolved["Auth:TotpSecret"]);
+    }
+
+    [Fact]
+    public void Relative_paths_resolve_against_the_base_path()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "secrets"));
+        File.WriteAllText(Path.Combine(_dir, "secrets", "totp_secret"), "JBSWY3DPEHPK3PXP");
+
+        var resolved = SecretFiles.Resolve(Config(new() { ["Auth:TotpSecretFile"] = "secrets/totp_secret" }), _dir);
 
         Assert.Equal("JBSWY3DPEHPK3PXP", resolved["Auth:TotpSecret"]);
     }
@@ -28,7 +39,7 @@ public sealed class SecretFilesTests : IDisposable
     {
         var config = Config(new() { ["Auth:TotpSecret"] = "x", ["Auth:TotpSecretFile"] = "/run/secrets/totp" });
 
-        var e = Assert.Throws<InvalidOperationException>(() => SecretFiles.Resolve(config));
+        var e = Assert.Throws<InvalidOperationException>(() => SecretFiles.Resolve(config, _dir));
 
         Assert.Contains("not both", e.Message, StringComparison.Ordinal);
     }
@@ -39,7 +50,7 @@ public sealed class SecretFilesTests : IDisposable
         var missing = Path.Combine(_dir, "nope");
 
         var e = Assert.Throws<InvalidOperationException>(
-            () => SecretFiles.Resolve(Config(new() { ["Auth:AdminPasswordHashFile"] = missing })));
+            () => SecretFiles.Resolve(Config(new() { ["Auth:AdminPasswordHashFile"] = missing }), _dir));
 
         Assert.Contains("Auth:AdminPasswordHashFile", e.Message, StringComparison.Ordinal);
         Assert.Contains(missing, e.Message, StringComparison.Ordinal);
@@ -51,7 +62,7 @@ public sealed class SecretFilesTests : IDisposable
         var path = Path.Combine(_dir, "anything");
         File.WriteAllText(path, "contents");
 
-        var resolved = SecretFiles.Resolve(Config(new() { ["Mcp:PublicUrlFile"] = path }));
+        var resolved = SecretFiles.Resolve(Config(new() { ["Mcp:PublicUrlFile"] = path }), _dir);
 
         Assert.Empty(resolved);
     }

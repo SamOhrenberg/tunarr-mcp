@@ -14,22 +14,26 @@ internal static class SecretFiles
         "Auth:TotpSecret",
     ];
 
-    /// <summary>Reads each configured secret file and layers its contents over the existing configuration.</summary>
-    public static ConfigurationManager AddSecretFiles(this ConfigurationManager configuration)
+    /// <summary>
+    /// Reads each configured secret file and layers its contents over the existing configuration.
+    /// Relative paths resolve against <paramref name="basePath"/> (the content root), like Data:Path.
+    /// </summary>
+    public static ConfigurationManager AddSecretFiles(this ConfigurationManager configuration, string basePath)
     {
-        configuration.AddInMemoryCollection(Resolve(configuration));
+        configuration.AddInMemoryCollection(Resolve(configuration, basePath));
         return configuration;
     }
 
-    internal static Dictionary<string, string?> Resolve(IConfiguration configuration)
+    internal static Dictionary<string, string?> Resolve(IConfiguration configuration, string basePath)
     {
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var key in Keys)
         {
-            var path = configuration[key + "File"];
-            if (string.IsNullOrEmpty(path))
+            var configured = configuration[key + "File"];
+            if (string.IsNullOrEmpty(configured))
                 continue;
+            var path = Path.GetFullPath(configured, basePath);
 
             if (!string.IsNullOrEmpty(configuration[key]))
                 throw new InvalidOperationException($"Set either {key} or {key}File, not both.");

@@ -6,7 +6,21 @@
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5080",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Auth__Mode": "Embedded",
+        "Auth__AdminUser": "admin",
+        "Auth__AdminPasswordHashFile": "../../.data/secrets/admin_password_hash",
+        "Auth__TotpSecretFile": "../../.data/secrets/totp_secret"
+      }
+    },
+    "http-noauth": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5080",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Auth__Mode": "None",
+        "Auth__AllowInsecureNone": "true"
       }
     }
   }
