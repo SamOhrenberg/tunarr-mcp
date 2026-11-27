@@ -77,7 +77,16 @@ internal sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
                 break;
         }
 
-        foreach (var range in AuthOptions.SplitIpRanges(options.AllowedIpRanges))
+        foreach (var entry in AuthOptions.SplitList(options.AllowedRedirectUris))
+        {
+            if (!Uri.TryCreate(entry, UriKind.Absolute, out var uri)
+                || !(uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
+                || uri.Fragment.Length > 0 || uri.UserInfo.Length > 0)
+                result.AddError($"{S}:{nameof(AuthOptions.AllowedRedirectUris)} entry '{entry}' must be an absolute https URL " +
+                                "(http only for localhost), without a fragment or credentials.");
+        }
+
+        foreach (var range in AuthOptions.SplitList(options.AllowedIpRanges))
         {
             if (!IPNetwork.TryParse(range, out _))
                 result.AddError($"{S}:{nameof(AuthOptions.AllowedIpRanges)} entry '{range}' is not a valid CIDR range.");

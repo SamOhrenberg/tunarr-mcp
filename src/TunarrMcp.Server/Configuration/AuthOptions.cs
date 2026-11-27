@@ -38,12 +38,18 @@ public sealed class AuthOptions
     /// <summary>Expected token audience. Defaults to <see cref="McpOptions.Resource"/> when unset.</summary>
     public string? Audience { get; set; }
 
+    /// <summary>
+    /// Comma-separated redirect URIs a client may register (DCR) or declare (CIMD). Exact match, except that
+    /// http loopback entries (localhost, 127.0.0.1, [::1]) match any port. Defaults to Claude's callbacks.
+    /// </summary>
+    public string? AllowedRedirectUris { get; set; }
+
     /// <summary>Optional comma-separated CIDR allowlist for /mcp, for example "160.79.104.0/21, 203.0.113.7/32".</summary>
     public string? AllowedIpRanges { get; set; }
 
     public IReadOnlyList<IPNetwork> ParseAllowedIpRanges() =>
-        SplitIpRanges(AllowedIpRanges).Select(IPNetwork.Parse).ToArray();
+        SplitList(AllowedIpRanges).Select(IPNetwork.Parse).ToArray();
 
-    internal static string[] SplitIpRanges(string? value) =>
+    internal static string[] SplitList(string? value) =>
         (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

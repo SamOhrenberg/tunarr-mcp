@@ -9,6 +9,9 @@ namespace TunarrMcp.Server.Auth;
 /// </summary>
 internal static class McpClientDescriptor
 {
+    /// <summary>Application property recording how a client got here ("dcr" or "cimd"), for later cleanup.</summary>
+    public const string RegistrationProperty = "registration";
+
     public static OpenIddictApplicationDescriptor Create(string clientId, string? displayName, IEnumerable<Uri> redirectUris, Uri resource)
     {
         var descriptor = new OpenIddictApplicationDescriptor

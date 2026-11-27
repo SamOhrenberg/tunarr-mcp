@@ -169,6 +169,15 @@ public sealed class OptionsValidationTests
     }
 
     [Fact]
+    public void Allowed_redirect_uris_must_be_https_or_http_loopback()
+    {
+        Get<AuthOptions>(new() { ["Auth:AllowedRedirectUris"] = "https://app.example/cb, http://localhost/callback" });
+
+        var message = Fails<AuthOptions>(new() { ["Auth:AllowedRedirectUris"] = "https://app.example/cb, http://app.example/cb" });
+        Assert.Contains("'http://app.example/cb'", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Tools_mode_is_case_insensitive()
     {
         Assert.Equal(ToolsMode.Write, Get<ToolsOptions>(new() { ["Tools:Mode"] = "write" }).Mode);

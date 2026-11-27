@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
+using TunarrMcp.Server.Auth.Registration;
 using TunarrMcp.Server.Configuration;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -11,8 +12,8 @@ namespace TunarrMcp.Server.Auth;
 
 /// <summary>
 /// Auth:Mode=Embedded: an OAuth 2.1 authorization server inside this app (OpenIddict), for a single admin.
-/// This part sets up storage, keys, endpoints and metadata. The login/consent flow and client registration
-/// are wired separately.
+/// This sets up storage, keys, endpoints and metadata, and wires in the login/consent flow (AuthEndpoints)
+/// and client registration (Registration/).
 /// </summary>
 internal static class EmbeddedAuthServer
 {
@@ -50,7 +51,11 @@ internal static class EmbeddedAuthServer
                 server.UseAspNetCore()
                     .EnableAuthorizationEndpointPassthrough()
                     .EnableTokenEndpointPassthrough();
+
+                server.AdvertiseClientRegistration();
             });
+
+        services.AddClientRegistration();
 
         // Issuer, resource and keys come from validated options, so they're applied here rather than above.
         services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, ConfigureServer>();
@@ -68,9 +73,9 @@ internal static class EmbeddedAuthServer
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            o.AddPolicy(AuthEndpoints.LoginRateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            o.AddPolicy(AuthEndpoints.LoginRateLimitPolicy, context => PerIp(context, permits: 5, TimeSpan.FromMinutes(1)));
+            // Claude registers once per connector setup; this only stops someone filling the database.
+            o.AddPolicy(DynamicClientRegistration.RateLimitPolicy, context => PerIp(context, permits: 10, TimeSpan.FromHours(1)));
         });
 
         return services;
@@ -83,11 +88,18 @@ internal static class EmbeddedAuthServer
         await using (var scope = app.Services.CreateAsyncScope())
             await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.EnsureCreatedAsync().ConfigureAwait(false);
 
+        app.UseClientMetadataDocuments(); // before OpenIddict sees /connect/authorize
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseRateLimiter();
         app.MapEmbeddedAuthEndpoints();
+        app.MapDynamicClientRegistration();
     }
+
+    private static RateLimitPartition<string> PerIp(HttpContext context, int permits, TimeSpan window) =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = permits, Window = window, QueueLimit = 0 });
 
     private sealed class ConfigureServer(IOptions<McpOptions> mcp, IOptions<DataOptions> data) : IConfigureOptions<OpenIddictServerOptions>
     {
