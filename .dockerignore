@@ -1,0 +1,11 @@
+# Only src/ and the build props are needed. Never send local data or secrets to the build context.
+**/bin/
+**/obj/
+**/.data/
+**/secrets/
+.git/
+.vs/
+.vscode/
+.idea/
+tests/
+*.md

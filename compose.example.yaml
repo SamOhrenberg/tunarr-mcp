@@ -1,0 +1,52 @@
+# Tunarr MCP next to Tunarr, behind a reverse proxy that terminates TLS.
+# Copy to compose.yaml (or merge into your existing one) and replace the example values.
+#
+# One-time setup, writes the admin credentials into ./secrets:
+#   docker run --rm -it -v ./secrets:/secrets ghcr.io/OWNER/tunarr-mcp setup --out /secrets
+# (On Linux the folder must be writable by uid 1654, the image's non-root user.)
+
+services:
+  tunarr:
+    image: chrisbenincasa/tunarr:2026.11.2 # pin it; bump only after checking the MCP server against the new release
+    # ...your existing Tunarr settings. Its port may stay reachable on the LAN,
+    # but never route it through the reverse proxy or the router.
+
+  tunarr-mcp:
+    image: ghcr.io/OWNER/tunarr-mcp:latest
+    # build: .                               # or build from a checkout of this repository
+    restart: unless-stopped
+    depends_on: [tunarr]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: America/Chicago                     # tool output uses this zone
+      Mcp__PublicUrl: https://mcp.example.com/mcp
+      Tunarr__BaseUrl: http://tunarr:8000/api/
+      Tools__Mode: read                       # read | write | all
+      Auth__AdminUser: admin
+      Auth__AdminPasswordHashFile: /run/secrets/admin_password_hash
+      Auth__TotpSecretFile: /run/secrets/totp_secret
+      # Trust X-Forwarded-For/-Proto so the app sees https and the client's real IP (rate limits, allowlist).
+      # This trusts whoever can reach port 8080, so only the proxy should: keep the port unpublished.
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+    secrets: [admin_password_hash, totp_secret]
+    volumes:
+      - tunarr-mcp-data:/data                 # SQLite, signing keys, data-protection keys
+    networks: [default, proxy]
+    # No ports: the reverse proxy reaches tunarr-mcp:8080 over the shared "proxy" network.
+
+secrets:
+  admin_password_hash:
+    file: ./secrets/admin_password_hash
+  totp_secret:
+    file: ./secrets/totp_secret
+
+volumes:
+  tunarr-mcp-data:
+
+networks:
+  proxy:
+    external: true # the network your reverse proxy (Nginx Proxy Manager, Traefik, Caddy) is attached to

@@ -84,6 +84,18 @@ public sealed class AuthServerMetadataTests(TestAppFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Data_protection_keys_are_kept_on_the_data_volume()
+    {
+        await using var app = factory.WithEmbeddedAuth(_data);
+        using var client = app.CreateClient();
+
+        using var login = await client.GetAsync(new Uri("/login", UriKind.Relative), Ct); // issues a CSRF token
+
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        Assert.NotEmpty(Directory.GetFiles(Path.Combine(_data, "dataprotection"), "key-*.xml"));
+    }
+
+    [Fact]
     public async Task No_auth_server_endpoints_when_auth_is_off()
     {
         using var client = factory.CreateClient(); // Auth:Mode=None

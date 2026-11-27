@@ -1,4 +1,7 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -63,6 +66,10 @@ internal static class EmbeddedAuthServer
         services.AddSingleton<IConfigureOptions<OpenIddictServerAspNetCoreOptions>, ConfigureServerAspNetCore>();
 
         // Login and consent: admin session cookie, CSRF tokens, credential check, per-IP rate limit.
+        // The cookie and CSRF tokens are protected with ASP.NET data-protection keys, kept on the data volume
+        // (the container's root filesystem is read-only, and in-memory keys would be lost on every restart).
+        services.AddDataProtection().SetApplicationName("tunarr-mcp");
+        services.AddSingleton<IConfigureOptions<KeyManagementOptions>, ConfigureDataProtectionKeys>();
         services.AddAuthentication().AddCookie(AdminCookie.Scheme, AdminCookie.Configure);
         services.AddAuthorization();
         services.AddAntiforgery(o =>
@@ -123,6 +130,12 @@ internal static class EmbeddedAuthServer
             options.EncryptionCredentials.Add(new EncryptingCredentials(
                 KeyStore.LoadOrCreate(keys, "encryption"), SecurityAlgorithms.RsaOAEP, SecurityAlgorithms.Aes256CbcHmacSha512));
         }
+    }
+
+    private sealed class ConfigureDataProtectionKeys(IOptions<DataOptions> data, ILoggerFactory loggers) : IConfigureOptions<KeyManagementOptions>
+    {
+        public void Configure(KeyManagementOptions options) => options.XmlRepository =
+            new FileSystemXmlRepository(new DirectoryInfo(Path.Combine(data.Value.Path, "dataprotection")), loggers);
     }
 
     private sealed class ConfigureServerAspNetCore(IOptions<McpOptions> mcp) : IConfigureOptions<OpenIddictServerAspNetCoreOptions>
