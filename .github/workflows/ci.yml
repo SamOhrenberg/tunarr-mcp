@@ -71,7 +71,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - uses: sigstore/cosign-installer@v4
+      # cosign-installer publishes full versions only (no moving v4 tag); Dependabot bumps it.
+      - uses: sigstore/cosign-installer@v4.1.4
         if: env.PUSH == 'true'
 
       - name: Sign the image
