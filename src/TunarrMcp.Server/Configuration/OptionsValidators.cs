@@ -57,11 +57,11 @@ internal sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
         switch (options.Mode)
         {
             case AuthMode.Embedded:
-                Require(result, options.AdminUser, $"{S}:{nameof(AuthOptions.AdminUser)}");
-                if (Require(result, options.AdminPasswordHash, $"{S}:{nameof(AuthOptions.AdminPasswordHash)}(File)")
+                Require(result, options.AdminUser, $"{S}:{nameof(AuthOptions.AdminUser)}", fromSetup: false);
+                if (Require(result, options.AdminPasswordHash, $"{S}:{nameof(AuthOptions.AdminPasswordHash)}(File)", fromSetup: true)
                     && !AdminCredentialFormats.IsPasswordHash(options.AdminPasswordHash))
                     result.AddError($"{S}:{nameof(AuthOptions.AdminPasswordHash)} is not a password hash. Run the 'setup' command to generate one.");
-                if (Require(result, options.TotpSecret, $"{S}:{nameof(AuthOptions.TotpSecret)}(File)")
+                if (Require(result, options.TotpSecret, $"{S}:{nameof(AuthOptions.TotpSecret)}(File)", fromSetup: true)
                     && !AdminCredentialFormats.IsTotpSecret(options.TotpSecret))
                     result.AddError($"{S}:{nameof(AuthOptions.TotpSecret)} must be base32 and at least {AdminCredentialFormats.MinTotpSecretBytes * 8} bits. Run the 'setup' command to generate one.");
                 break;
@@ -95,12 +95,12 @@ internal sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
         return result.Build();
     }
 
-    private static bool Require(ValidateOptionsResultBuilder result, [NotNullWhen(true)] string? value, string key)
+    private static bool Require(ValidateOptionsResultBuilder result, [NotNullWhen(true)] string? value, string key, bool fromSetup)
     {
         if (!string.IsNullOrWhiteSpace(value))
             return true;
 
-        result.AddError($"{key} is required in Embedded mode. Run the 'setup' command to generate it.");
+        result.AddError($"{key} is required in Embedded mode." + (fromSetup ? " Run the 'setup' command to generate it." : ""));
         return false;
     }
 }

@@ -9,7 +9,7 @@ internal static class AuthRegistration
         return ModeOf(configuration) switch
         {
             AuthMode.Embedded => services.AddEmbeddedAuthServer(),
-            AuthMode.ExternalOidc => throw new NotSupportedException("Auth:Mode=ExternalOidc is not implemented yet. Use Embedded."),
+            AuthMode.ExternalOidc => throw new ConfigurationException("Auth:Mode=ExternalOidc is not implemented yet. Use Embedded."),
             _ => services,
         };
     }

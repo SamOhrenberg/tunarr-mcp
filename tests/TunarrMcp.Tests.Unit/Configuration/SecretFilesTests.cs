@@ -39,7 +39,7 @@ public sealed class SecretFilesTests : IDisposable
     {
         var config = Config(new() { ["Auth:TotpSecret"] = "x", ["Auth:TotpSecretFile"] = "/run/secrets/totp" });
 
-        var e = Assert.Throws<InvalidOperationException>(() => SecretFiles.Resolve(config, _dir));
+        var e = Assert.Throws<ConfigurationException>(() => SecretFiles.Resolve(config, _dir));
 
         Assert.Contains("not both", e.Message, StringComparison.Ordinal);
     }
@@ -49,7 +49,7 @@ public sealed class SecretFilesTests : IDisposable
     {
         var missing = Path.Combine(_dir, "nope");
 
-        var e = Assert.Throws<InvalidOperationException>(
+        var e = Assert.Throws<ConfigurationException>(
             () => SecretFiles.Resolve(Config(new() { ["Auth:AdminPasswordHashFile"] = missing }), _dir));
 
         Assert.Contains("Auth:AdminPasswordHashFile", e.Message, StringComparison.Ordinal);

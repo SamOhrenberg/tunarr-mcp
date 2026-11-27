@@ -36,7 +36,7 @@ internal static class SecretFiles
             var path = Path.GetFullPath(configured, basePath);
 
             if (!string.IsNullOrEmpty(configuration[key]))
-                throw new InvalidOperationException($"Set either {key} or {key}File, not both.");
+                throw new ConfigurationException($"Set either {key} or {key}File, not both.");
 
             string contents;
             try
@@ -46,7 +46,10 @@ internal static class SecretFiles
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 // The path is not secret, the contents are. Never include the contents in the message.
-                throw new InvalidOperationException($"{key}File points to '{path}', which could not be read: {e.Message}", e);
+                var hint = e is FileNotFoundException or DirectoryNotFoundException && key.StartsWith("Auth:", StringComparison.Ordinal)
+                    ? " Run the 'setup' command to create it."
+                    : "";
+                throw new ConfigurationException($"{key}File points to '{path}', which doesn't exist or can't be read.{hint}", e);
             }
 
             // Files written by `echo` or editors usually end in a newline that isn't part of the secret.

@@ -29,7 +29,9 @@ internal static class SetupCommand
                   --out DIR       Where to write admin_password_hash and totp_secret (default: ./secrets)
                   --account NAME  Label shown in the authenticator app (default: admin)
 
-                In Docker: docker run --rm -it -v /path/on/host:/secrets IMAGE setup --out /secrets
+                In Docker:  docker run --rm -it -v /path/on/host:/secrets IMAGE setup --out /secrets
+                From source (dotnet run starts in the project folder, so the path is relative to it):
+                            dotnet run --project src/TunarrMcp.Server -- setup --out ../../.data/secrets
 
                 """);
             return 2;
