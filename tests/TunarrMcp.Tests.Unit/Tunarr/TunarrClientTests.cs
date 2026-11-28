@@ -1,5 +1,7 @@
 using System.Net;
+using System.Text.Json;
 using TunarrMcp.Tunarr;
+using TunarrMcp.Tunarr.Models;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -105,6 +107,101 @@ public sealed class TunarrClientTests : IDisposable
         var e = await Assert.ThrowsAsync<TunarrApiException>(() => _client.GetChannelsAsync(Ct));
 
         Assert.Contains("empty body", e.Message, StringComparison.Ordinal);
+    }
+
+    private const string EmptySearch = """{"results":[],"page":1,"totalPages":0,"totalHits":0}""";
+
+    private JsonElement LastRequestBody()
+    {
+        var body = Assert.Single(_tunarr.LogEntries).RequestMessage!.Body;
+        using var json = JsonDocument.Parse(body!);
+        return json.RootElement.Clone();
+    }
+
+    [Fact]
+    public async Task Text_search_matches_titles_ranked_by_relevance()
+    {
+        _tunarr.Given(Request.Create().WithPath("/api/programs/search").UsingPost())
+            .RespondWith(Response.Create().WithBody(EmptySearch));
+
+        await _client.SearchProgramsAsync(new LibrarySearch("bluey", ["show", "movie"], null, "src1", Page: 2), Ct);
+
+        var body = LastRequestBody();
+        var query = body.GetProperty("query");
+        Assert.Equal("bluey", query.GetProperty("query").GetString());
+        Assert.Equal(["title"], query.GetProperty("restrictSearchTo").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(0, query.GetProperty("sort").GetArrayLength()); // [] means relevance; leaving it out sorts by title
+        var spec = query.GetProperty("filter").GetProperty("fieldSpec");
+        Assert.Equal("value", query.GetProperty("filter").GetProperty("type").GetString());
+        Assert.Equal("type", spec.GetProperty("key").GetString());
+        Assert.Equal("in", spec.GetProperty("op").GetString());
+        Assert.Equal(["show", "movie"], spec.GetProperty("value").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal("src1", body.GetProperty("mediaSourceId").GetString());
+        Assert.Equal(2, body.GetProperty("page").GetInt32()); // text queries page from 1
+        Assert.True(body.GetProperty("expandParents").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Browsing_pages_from_zero_and_combines_filters_with_and()
+    {
+        _tunarr.Given(Request.Create().WithPath("/api/programs/search").UsingPost())
+            .RespondWith(Response.Create().WithBody(EmptySearch));
+
+        await _client.SearchProgramsAsync(new LibrarySearch(null, ["movie"], "Animation", null, Page: 1), Ct);
+
+        var body = LastRequestBody();
+        var query = body.GetProperty("query");
+        Assert.Equal(0, body.GetProperty("page").GetInt32());
+        // Tunarr's schema rejects null for these, so they must be absent rather than null.
+        Assert.False(query.TryGetProperty("query", out _));
+        Assert.False(query.TryGetProperty("restrictSearchTo", out _));
+        Assert.False(query.TryGetProperty("sort", out _));
+        Assert.False(body.TryGetProperty("mediaSourceId", out _));
+        var filter = query.GetProperty("filter");
+        Assert.Equal("op", filter.GetProperty("type").GetString());
+        Assert.Equal("and", filter.GetProperty("op").GetString());
+        Assert.Equal("genres.name", filter.GetProperty("children")[1].GetProperty("fieldSpec").GetProperty("key").GetString());
+    }
+
+    [Fact]
+    public async Task Search_hits_carry_episode_parents()
+    {
+        _tunarr.Given(Request.Create().WithPath("/api/programs/search").UsingPost())
+            .RespondWith(Response.Create().WithBody("""
+                {"results":[{"uuid":"e1","type":"episode","title":"The Beach","year":2018,"mediaSourceId":"src1",
+                  "duration":438058,"episodeNumber":26,"show":{"uuid":"s1","title":"Bluey (2018)"},"season":{"uuid":"se1","index":1}}],
+                 "page":1,"totalPages":1,"totalHits":1}
+                """));
+
+        var hit = Assert.Single((await _client.SearchProgramsAsync(new LibrarySearch("beach", ["episode"], null, null, 1), Ct)).Results);
+
+        Assert.Equal("Bluey (2018)", hit.Show?.Title);
+        Assert.Equal(1, hit.Season?.Index);
+        Assert.Equal(26, hit.EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task Unknown_show_is_null()
+    {
+        _tunarr.Given(Request.Create().WithPath("/api/program_groupings/nope").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(404));
+
+        Assert.Null(await _client.GetShowAsync("nope", Ct));
+    }
+
+    [Fact]
+    public async Task Season_episodes_are_read()
+    {
+        _tunarr.Given(Request.Create().WithPath("/api/programs/se1/children").UsingGet())
+            .RespondWith(Response.Create().WithBody("""
+                {"total":1,"size":1,"result":{"type":"episode","programs":[
+                  {"uuid":"e1","type":"episode","title":"Magic Xylophone","episodeNumber":1,"duration":438016,"state":"ok"}]}}
+                """));
+
+        var episode = Assert.Single((await _client.GetSeasonEpisodesAsync("se1", Ct)).Result.Programs);
+
+        Assert.Equal("Magic Xylophone", episode.Title);
+        Assert.Equal(438016, episode.Duration);
     }
 
     [Fact]

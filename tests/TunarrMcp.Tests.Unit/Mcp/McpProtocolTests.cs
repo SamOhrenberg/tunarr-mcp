@@ -91,6 +91,82 @@ public sealed class McpProtocolTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Equal("c5", channels[1].GetProperty("id").GetString());
     }
 
+    private const string MediaSources = """[{"id":"src1","name":"Jellyfin","type":"jellyfin","libraries":[]}]""";
+
+    private static string ToolText(CallToolResult result) =>
+        Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+
+    [Fact]
+    public async Task Search_library_names_the_source_of_each_result()
+    {
+        Stub("media-sources", MediaSources);
+        _tunarr.Given(Request.Create().WithPath("/api/programs/search").UsingPost())
+            .RespondWith(Response.Create().WithBody("""
+                {"results":[{"uuid":"s1","type":"show","title":"Bluey (2018)","year":2018,"mediaSourceId":"src1","childCount":3,"grandchildCount":154}],
+                 "page":1,"totalPages":1,"totalHits":1}
+                """));
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["query"] = "bluey", ["source"] = "jellyfin" },
+            cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+        using var json = JsonDocument.Parse(ToolText(result));
+        var item = json.RootElement.GetProperty("results")[0];
+        Assert.Equal("Jellyfin", item.GetProperty("source").GetString());
+        Assert.Equal(154, item.GetProperty("episodes").GetInt32());
+        Assert.False(item.TryGetProperty("minutes", out _)); // nulls are left out
+    }
+
+    [Fact]
+    public async Task Search_library_rejects_an_unknown_source_by_listing_the_real_ones()
+    {
+        Stub("media-sources", MediaSources);
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["source"] = "plex" }, cancellationToken: Ct);
+
+        Assert.True(result.IsError);
+        Assert.Contains("Sources: Jellyfin.", ToolText(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Get_show_lists_the_episodes_of_a_season()
+    {
+        Stub("media-sources", MediaSources);
+        Stub("program_groupings/s1", """
+            {"uuid":"s1","type":"show","title":"Bluey (2018)","mediaSourceId":"src1","grandchildCount":2,
+             "seasons":[{"uuid":"se1","index":1,"title":"Season 1","childCount":2}]}
+            """);
+        Stub("programs/se1/children", """
+            {"total":2,"size":2,"result":{"type":"episode","programs":[
+              {"uuid":"e2","title":"Hospital","episodeNumber":2,"duration":438016,"state":"ok"},
+              {"uuid":"e1","title":"Magic Xylophone","episodeNumber":1,"duration":438016,"state":"ok"}]}}
+            """);
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("get_show", new Dictionary<string, object?> { ["showId"] = "s1", ["season"] = 1 }, cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+        using var json = JsonDocument.Parse(ToolText(result));
+        var episodes = json.RootElement.GetProperty("season").GetProperty("episodes");
+        Assert.Equal("e1", episodes[0].GetProperty("id").GetString());
+        Assert.Equal("Hospital", episodes[1].GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Get_show_with_a_movie_id_says_how_to_find_a_show()
+    {
+        Stub("media-sources", MediaSources);
+        Stub("program_groupings/m1", "", status: 404);
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("get_show", new Dictionary<string, object?> { ["showId"] = "m1" }, cancellationToken: Ct);
+
+        Assert.True(result.IsError);
+        Assert.Contains("Use search_library", ToolText(result), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Tunarr_error_is_reported_to_the_model()
     {

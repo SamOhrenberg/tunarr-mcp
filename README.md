@@ -15,6 +15,8 @@ behind its own OAuth 2.1 login.
 | --- | --- | --- |
 | `system_status` | read | Tunarr version, failing health checks, scheduled tasks, how far ahead the guide is built |
 | `list_channels` | read | Every channel's number, name and id, and whether it's programmed by hand or by a slot schedule |
+| `search_library` | read | Find shows, movies or episodes by title, genre or media source |
+| `get_show` | read | A show's seasons, or one season's episodes with their ids, for picking specific episodes |
 
 ## How it works
 
