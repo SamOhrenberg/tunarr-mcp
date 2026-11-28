@@ -69,7 +69,7 @@ public sealed class ScheduleShapeTests
             [
                 new ScheduleSlot("show")
                 {
-                    ShowId = "s2", Show = new SlotTarget("Scrubs", null, null), Weight = 9.99, CooldownMs = 1_800_000,
+                    Id = "slot-1", ShowId = "s2", Show = new SlotTarget("Scrubs", null, null), Weight = 9.99, CooldownMs = 1_800_000,
                     DurationSpec = new SlotDurationSpec("dynamic", null, 1), Order = "shuffle", SeasonExcludeFilter = [9],
                     Filler = [new SlotFiller(["pre"], "f1", "shuffle_prefer_short")],
                 },
@@ -84,28 +84,35 @@ public sealed class ScheduleShapeTests
         Assert.Equal(["s2", "cs1"], view.Slots.Select(s => s.Id));
         var scrubs = view.Slots[0];
         Assert.Null(scrubs.At);
+        Assert.Equal("slot-1", scrubs.SlotId);
         Assert.Equal(9.99, scrubs.Weight);
-        Assert.Equal("1 program", scrubs.Length);
+        Assert.Equal(1, scrubs.Programs);
+        Assert.Null(scrubs.Minutes);
         Assert.Equal(30, scrubs.CooldownMinutes);
         Assert.Equal([9], scrubs.ExceptSeasons!);
         Assert.Null(scrubs.OnlySeasons);
-        Assert.Equal(["Toonami Filler: pre"], scrubs.Filler!);
+        var filler = Assert.Single(scrubs.Filler!);
+        Assert.Equal(("f1", "Toonami Filler", "shuffle_prefer_short"), (filler.FillerListId, filler.Name, filler.Order));
+        Assert.Equal(["pre"], filler.When);
+        Assert.Null(scrubs.Descending);
         var movies = view.Slots[1];
         Assert.Equal("custom_show", movies.Plays);
         Assert.Equal("TRCPD Movies", movies.Title);
-        Assert.Equal("30 min", movies.Length);
-        Assert.Equal("chronological (descending)", movies.Order);
+        Assert.Null(movies.Programs);
+        Assert.Equal(30, movies.Minutes);
+        Assert.Equal("chronological", movies.Order);
+        Assert.True(movies.Descending);
         Assert.Equal("weighted", view.Settings?.Distribution);
         Assert.Null(view.Settings?.Period);
         Assert.False(view.Settings?.RebuildEachCycle);
     }
 
-    [Theory]
-    [InlineData("dynamic", null, 3, "3 programs")]
-    [InlineData("fixed", 5_400_000d, null, "90 min")]
-    public void Length_describes_the_duration_spec(string type, double? ms, int? count, string expected)
+    [Fact]
+    public void Random_slot_without_a_duration_spec_plays_one_program()
     {
-        Assert.Equal(expected, ScheduleShape.Length(new SlotDurationSpec(type, ms, count)));
+        var view = Shape(new ChannelSchedule("random") { Slots = [new ScheduleSlot("show") { ShowId = "s1" }] });
+
+        Assert.Equal(1, view.Slots[0].Programs);
     }
 
     [Fact]

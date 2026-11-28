@@ -215,7 +215,8 @@ public sealed class McpProtocolTests(TestAppFactory factory) : IClassFixture<Tes
         var slot = json.RootElement.GetProperty("slots")[0];
         Assert.Equal("Scrubs", slot.GetProperty("title").GetString());
         Assert.Equal(9, slot.GetProperty("exceptSeasons")[0].GetInt32());
-        Assert.Equal("Toonami Filler: pre", slot.GetProperty("filler")[0].GetString());
+        Assert.Equal("Toonami Filler", slot.GetProperty("filler")[0].GetProperty("name").GetString());
+        Assert.Equal("58dbdd2b", slot.GetProperty("slotId").GetString());
     }
 
     [Fact]
@@ -255,6 +256,58 @@ public sealed class McpProtocolTests(TestAppFactory factory) : IClassFixture<Tes
 
         Assert.True(result.IsError);
         Assert.Contains("Channels: 3 Animation Station, 5 Sam-O-Rama.", ToolText(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Preview_schedule_sends_the_built_schedule_to_the_time_slot_route()
+    {
+        Stub("channels", TwoChannels);
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c3/schedule").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c3/schedule-time-slots").UsingPost())
+            .RespondWith(Response.Create().WithBody("""
+                {"startTime":1792900800000,"seed":[1],"discardCount":0,
+                 "lineup":[{"type":"content","id":"p1","duration":438016},{"type":"flex","duration":1361984}],
+                 "programs":{"p1":{"type":"content","id":"p1","duration":438016,"program":{"uuid":"p1","type":"episode","title":"Magic Xylophone","episodeNumber":1,"show":{"title":"Bluey (2018)"},"season":{"index":1}}}}}
+                """));
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("preview_schedule", new Dictionary<string, object?>
+        {
+            ["channel"] = "3",
+            ["schedule"] = new { type = "time", padMinutes = 30, slots = new object[] { new { plays = "show", id = "s1", at = "07:00" } } },
+        }, cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+        using var json = JsonDocument.Parse(ToolText(result));
+        Assert.Equal("time_slots", json.RootElement.GetProperty("programming").GetString());
+        Assert.NotEqual(0, json.RootElement.GetProperty("upcoming").GetArrayLength());
+
+        var sent = _tunarr.LogEntries.Single(e => e.RequestMessage!.Method == "POST").RequestMessage!.Body!;
+        using var body = JsonDocument.Parse(sent);
+        var schedule = body.RootElement.GetProperty("schedule");
+        Assert.Equal(1_800_000, schedule.GetProperty("padMs").GetInt32());
+        Assert.Equal(7 * 3_600_000, schedule.GetProperty("slots")[0].GetProperty("startTime").GetInt32());
+    }
+
+    [Fact]
+    public async Task Preview_schedule_passes_tunarrs_reason_for_rejecting_a_schedule()
+    {
+        Stub("channels", TwoChannels);
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c3/schedule").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c3/schedule-slots").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(400).WithBody("Slot 0 references playlist cs1, which has no content to schedule"));
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("preview_schedule", new Dictionary<string, object?>
+        {
+            ["channel"] = "3",
+            ["schedule"] = new { type = "random", slots = new object[] { new { plays = "custom_show", id = "cs1" } } },
+        }, cancellationToken: Ct);
+
+        Assert.True(result.IsError);
+        Assert.Contains("has no content to schedule", ToolText(result), StringComparison.Ordinal);
     }
 
     [Fact]

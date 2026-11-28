@@ -32,30 +32,42 @@ public sealed record ScheduleSettings(
     int? MaxDays,
     bool? RebuildEachCycle);
 
-/// <summary>One slot. Which fields are set depends on the schedule type and what the slot plays.</summary>
+/// <summary>
+/// One slot, in the same terms preview_schedule and set_channel_schedule take, so a slot can be read, changed and
+/// sent back with its slotId. Which fields are set depends on the schedule type and what the slot plays.
+/// </summary>
+/// <param name="SlotId">Pass back to change this slot while keeping settings the tools don't cover.</param>
 /// <param name="At">Time slots: start time, HH:mm in the server's time zone; prefixed with the day for weekly schedules.</param>
 /// <param name="Weight">Random slots: relative chance of being picked.</param>
-/// <param name="Length">Random slots: how long the slot runs, e.g. "1 program" or "30 min".</param>
+/// <param name="Programs">Random slots: the slot plays this many programs.</param>
+/// <param name="Minutes">Random slots: the slot runs this many minutes.</param>
 /// <param name="CooldownMinutes">Random slots: minimum time before the slot can play again.</param>
 /// <param name="Plays">show, custom_show, smart_collection, filler, flex (dead air / offline screen) or redirect (another channel).</param>
 /// <param name="Id">The show, custom show, smart collection, filler list or channel id.</param>
-/// <param name="Order">How the slot works through its content: next (in order, picking up where it left off), shuffle, ordered_shuffle, alphanumeric or chronological. " (descending)" when reversed.</param>
-/// <param name="Filler">Filler around the slot's programs: "list name: when" (pre, post, head, tail, mid, fallback).</param>
+/// <param name="Order">How the slot works through its content: next (in order, picking up where it left off), shuffle, ordered_shuffle, alphanumeric or chronological.</param>
+/// <param name="Filler">Filler around the slot's programs.</param>
+/// <param name="MidRollBreaks">The slot breaks long programs up with filler (set up in Tunarr; kept when the slot is changed by slotId).</param>
 /// <param name="Missing">The thing the slot refers to no longer exists; the slot airs as flex.</param>
 public sealed record SlotView(
+    string? SlotId,
     string? At,
     double? Weight,
-    string? Length,
+    int? Programs,
+    double? Minutes,
     double? CooldownMinutes,
     string Plays,
     string? Title,
     string? Id,
     string? Order,
+    bool? Descending,
     IReadOnlyList<int>? OnlySeasons,
     IReadOnlyList<int>? ExceptSeasons,
-    IReadOnlyList<string>? Filler,
+    IReadOnlyList<FillerView>? Filler,
     bool? MidRollBreaks,
     bool? Missing);
+
+/// <param name="When">pre, post, head, tail, mid or fallback.</param>
+public sealed record FillerView(string FillerListId, string Name, IReadOnlyList<string> When, string? Order);
 
 internal static class ScheduleShape
 {
@@ -106,20 +118,24 @@ internal static class ScheduleShape
         };
 
         var missing = slot.IsMissing == true || slot.MissingShow is not null || (slot.Type == "show" && slot.Show is null);
+        var spec = isTime ? null : slot.DurationSpec ?? new SlotDurationSpec("dynamic", null, 1); // Tunarr's default
 
         return new SlotView(
+            slot.Id,
             isTime ? At(slot.StartTime ?? 0, weekly) : null,
             isTime ? null : slot.Weight,
-            isTime ? null : Length(slot.DurationSpec),
+            spec is { Type: "dynamic" } ? spec.ProgramCount : null,
+            spec is { Type: "fixed", DurationMs: { } ms } ? Minutes(ms) : null,
             isTime ? null : Minutes(slot.CooldownMs),
             plays,
             title,
             id,
-            Order(slot),
+            slot.Order,
+            slot.Direction == "desc" ? true : null,
             NullIfEmpty(slot.SeasonFilter),
             NullIfEmpty(slot.SeasonExcludeFilter),
             slot.Filler is { Count: > 0 } filler
-                ? filler.Select(f => $"{Name(f.FillerListId, fillerNames)}: {string.Join(", ", f.Types)}").ToArray()
+                ? filler.Select(f => new FillerView(f.FillerListId, Name(f.FillerListId, fillerNames), f.Types, f.FillerOrder)).ToArray()
                 : null,
             slot.MidRoll is null ? null : true,
             missing ? true : null);
@@ -132,22 +148,6 @@ internal static class ScheduleShape
         var time = new TimeOnly(offset.Hours, offset.Minutes).ToString("HH:mm", CultureInfo.InvariantCulture);
         return weekly ? $"{Days[offset.Days % 7]} {time}" : time;
     }
-
-    internal static string? Length(SlotDurationSpec? spec) => spec switch
-    {
-        { Type: "fixed", DurationMs: { } ms } => $"{Minutes(ms)} min",
-        { Type: "dynamic", ProgramCount: 1 } => "1 program",
-        { Type: "dynamic", ProgramCount: { } n } => $"{n} programs",
-        null => "1 program", // Tunarr's default
-        _ => null,
-    };
-
-    private static string? Order(ScheduleSlot slot) => slot.Order switch
-    {
-        null => null,
-        var order when slot.Direction == "desc" => order + " (descending)",
-        var order => order,
-    };
 
     private static string Name(string? id, IReadOnlyDictionary<string, string> names) =>
         id is not null && names.TryGetValue(id, out var name) ? name : id ?? "unknown";

@@ -131,6 +131,15 @@ public sealed record ChannelLineup(
 /// </summary>
 public sealed record SavedLineup(int TotalPrograms, IReadOnlyList<LineupItem> Lineup);
 
+/// <summary>
+/// What a schedule preview answers: the generated lineup, starting at StartTime (epoch ms, the channel's start
+/// time), with the details of its programs keyed by lineup item id.
+/// </summary>
+public sealed record SchedulePreview(
+    double StartTime,
+    IReadOnlyList<LineupItem> Lineup,
+    IReadOnlyDictionary<string, LineupProgramEntry>? Programs);
+
 /// <summary>Type is content, custom (from a custom show), filler, redirect (to another channel) or flex (a gap).</summary>
 public sealed record LineupItem(string Type, string? Id, double Duration, string? ChannelName, int? ChannelNumber);
 

@@ -95,6 +95,46 @@ public sealed class TunarrClient(HttpClient http)
     public Task<ProgramDetails?> GetProgramAsync(string programId, CancellationToken ct = default) =>
         GetOrNotFoundAsync<ProgramDetails>($"programs/{Uri.EscapeDataString(programId)}", ct);
 
+    /// <summary>
+    /// GET /channels/:id/schedule, as Tunarr's JSON: the schedule object, or null without one. Tunarr embeds the
+    /// things slots refer to (show, customShow, ...) for display; <see cref="StripSlotDisplayFields"/> removes them.
+    /// </summary>
+    public async Task<JsonObject?> GetChannelScheduleJsonAsync(string channelId, CancellationToken ct = default)
+    {
+        var path = $"channels/{Uri.EscapeDataString(channelId)}/schedule";
+        using var response = await http.GetAsync(new Uri(path, UriKind.Relative), ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, HttpMethod.Get, path, ct).ConfigureAwait(false);
+
+        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        return body.Length == 0 ? null : JsonNode.Parse(body)?["schedule"] as JsonObject;
+    }
+
+    /// <summary>The display-only fields GET /channels/:id/schedule adds to each slot.</summary>
+    public static readonly IReadOnlySet<string> SlotDisplayFields = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "show", "customShow", "fillerList", "smartCollection", "channel", "missingShow", "isMissing",
+    };
+
+    /// <summary>A copy of a slot as read, without the fields Tunarr adds for display, ready to save again.</summary>
+    public static JsonObject StripSlotDisplayFields(JsonObject slot)
+    {
+        var copy = (JsonObject)slot.DeepClone();
+        foreach (var field in SlotDisplayFields)
+            copy.Remove(field);
+        return copy;
+    }
+
+    /// <summary>
+    /// POST /channels/:id/schedule-time-slots or /schedule-slots (by the schedule's type): generates the lineup a
+    /// schedule would produce, without saving anything. Tunarr rejects invalid schedules with a 400 and a reason.
+    /// </summary>
+    public Task<SchedulePreview> PreviewScheduleAsync(string channelId, JsonObject schedule, CancellationToken ct = default)
+    {
+        var route = (string?)schedule["type"] == "time" ? "schedule-time-slots" : "schedule-slots";
+        return PostAsync<JsonObject, SchedulePreview>($"channels/{Uri.EscapeDataString(channelId)}/{route}",
+            new JsonObject { ["schedule"] = schedule.DeepClone() }, ct);
+    }
+
     /// <summary>GET /media-sources</summary>
     public async Task<IReadOnlyList<MediaSource>> GetMediaSourcesAsync(CancellationToken ct = default) =>
         await GetAsync<List<MediaSource>>("media-sources", ct).ConfigureAwait(false);

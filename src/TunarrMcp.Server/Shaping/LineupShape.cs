@@ -51,7 +51,7 @@ internal static class LineupShape
             items);
     }
 
-    private static LineupItemView Item(LineupItem item, int position, double startOffsetMs, IReadOnlyDictionary<string, LineupProgramEntry>? programs)
+    internal static LineupItemView Item(LineupItem item, int position, double startOffsetMs, IReadOnlyDictionary<string, LineupProgramEntry>? programs)
     {
         var minutes = Math.Round(item.Duration / TimeSpan.MillisecondsPerMinute, 1);
         var startsAt = Math.Round(startOffsetMs / TimeSpan.MillisecondsPerHour, 2);

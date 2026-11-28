@@ -20,6 +20,7 @@ behind its own OAuth 2.1 login.
 | `list_collections` | read | Custom shows, filler lists and smart collections, with their ids |
 | `get_channel_schedule` | read | A channel's time-slot or random-slot schedule in plain terms |
 | `get_channel_lineup` | read | The programs a channel plays, in order, a page at a time |
+| `preview_schedule` | read | What a time-slot or random-slot schedule would air from now on, without saving it |
 | `add_to_channel` | write | Append specific episodes or movies to a channel's lineup |
 | `undo_last_change` | write | Put a channel back the way it was before the last change a tool made |
 
