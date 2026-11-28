@@ -4,7 +4,9 @@
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 ARG TARGETARCH
 # Set by CI from the git tag (1.2.3), "edge" for main; reported as the MCP server version.
-ARG VERSION=0.0.0-dev
+# Not named VERSION: build args become environment variables, and MSBuild would read that as $(Version),
+# which must be a valid NuGet version ("edge" isn't, and restore fails without saying why).
+ARG APP_VERSION=0.0.0-dev
 WORKDIR /src
 
 # Restore from the project files alone, so this layer stays cached until dependencies change.
@@ -15,7 +17,7 @@ RUN dotnet restore src/TunarrMcp.Server -a $TARGETARCH
 
 COPY src/ src/
 RUN dotnet publish src/TunarrMcp.Server -c Release -a $TARGETARCH --no-restore -o /app \
-    -p:UseAppHost=false -p:InformationalVersion=$VERSION
+    -p:UseAppHost=false -p:InformationalVersion=$APP_VERSION
 
 # The data directory is created here (the runtime image has no shell) and handed to the app user below,
 # so a named volume mounted on it starts out writable.

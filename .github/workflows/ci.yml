@@ -65,7 +65,7 @@ jobs:
           push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: VERSION=${{ steps.meta.outputs.version }}
+          build-args: APP_VERSION=${{ steps.meta.outputs.version }}
           sbom: true
           provenance: mode=max
           cache-from: type=gha
