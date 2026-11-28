@@ -213,6 +213,35 @@ public sealed class ScheduleWriteToolsTests(TestAppFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Previews_never_touch_the_data_directory()
+    {
+        // A data path that can't be created on any OS: under a regular file.
+        var file = Path.Combine(_data, "not-a-folder");
+        await File.WriteAllTextAsync(file, "", Ct);
+        StubChannel(scheduled: true);
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c99/schedule-time-slots").UsingPost())
+            .RespondWith(Response.Create().WithBody("""{"startTime":1,"lineup":[{"type":"flex","duration":1000}],"programs":{}}"""));
+        _app = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Tunarr:BaseUrl", _tunarr.Url + "/api/");
+            b.UseSetting("Tools:Mode", "write");
+            b.UseSetting("Data:Path", Path.Combine(file, "data"));
+        });
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions { Endpoint = new Uri(_app.Server.BaseAddress, "/mcp") },
+            _app.CreateClient(), ownsHttpClient: true);
+        await using var client = await McpClient.CreateAsync(transport, cancellationToken: Ct);
+
+        var result = await client.CallToolAsync("preview_schedule", new Dictionary<string, object?>
+        {
+            ["channel"] = "99",
+            ["schedule"] = JsonSerializer.Deserialize<JsonElement>($$"""{"type":"time","slots":[{{Bluey}}]}"""),
+        }, cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+    }
+
+    [Fact]
     public async Task Channels_outside_the_allowlist_are_read_only()
     {
         StubChannel(scheduled: true);

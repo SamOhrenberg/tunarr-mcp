@@ -61,6 +61,20 @@ public sealed class ChangeLogTests : IDisposable
     }
 
     [Fact]
+    public async Task Database_folder_is_created_on_first_use()
+    {
+        var folder = Path.Combine(_data, "not", "yet");
+        var options = new DbContextOptionsBuilder<ChangeDbContext>()
+            .UseSqlite($"Data Source={Path.Combine(folder, ChangeLog.DatabaseFile)}").Options;
+        using var log = new ChangeLog(new Factory(options), TimeProvider.System);
+        Assert.False(Directory.Exists(folder));
+
+        Assert.Null(await log.LatestAsync(null, Ct));
+
+        Assert.True(File.Exists(Path.Combine(folder, ChangeLog.DatabaseFile)));
+    }
+
+    [Fact]
     public async Task Empty_log_has_nothing_to_undo()
     {
         Assert.Null(await _log.LatestAsync(null, Ct));

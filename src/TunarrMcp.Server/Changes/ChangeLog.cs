@@ -83,6 +83,10 @@ public sealed class ChangeLog(IDbContextFactory<ChangeDbContext> contexts, TimeP
         var db = await contexts.CreateDbContextAsync(ct).ConfigureAwait(false);
         if (!_created)
         {
+            // The folder and file appear on first use, not at startup or when a tool is built: read-only setups and
+            // read tools never touch the disk.
+            if (Path.GetDirectoryName(db.Database.GetDbConnection().DataSource) is { Length: > 0 } folder)
+                Directory.CreateDirectory(folder);
             await db.Database.EnsureCreatedAsync(ct).ConfigureAwait(false);
             _created = true;
         }
@@ -98,7 +102,6 @@ internal static class ChangeLogRegistration
         services.AddDbContextFactory<ChangeDbContext>((sp, db) =>
         {
             var data = sp.GetRequiredService<IOptions<DataOptions>>().Value;
-            Directory.CreateDirectory(data.Path);
             db.UseSqlite($"Data Source={Path.Combine(data.Path, ChangeLog.DatabaseFile)}");
         });
         services.AddSingleton<ChangeLog>();
