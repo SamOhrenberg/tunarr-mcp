@@ -18,6 +18,8 @@ behind its own OAuth 2.1 login.
 | `search_library` | read | Find shows, movies or episodes by title, genre or media source |
 | `get_show` | read | A show's seasons, or one season's episodes with their ids, for picking specific episodes |
 | `list_collections` | read | Custom shows, filler lists and smart collections, with their ids |
+| `get_channel_schedule` | read | A channel's time-slot or random-slot schedule in plain terms |
+| `get_channel_lineup` | read | The programs a channel plays, in order, a page at a time |
 
 ## How it works
 

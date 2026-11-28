@@ -45,6 +45,11 @@ public sealed class TunarrClient(HttpClient http)
     public Task<ChannelScheduleResponse?> GetChannelScheduleAsync(string channelId, CancellationToken ct = default) =>
         GetOptionalAsync<ChannelScheduleResponse>($"channels/{Uri.EscapeDataString(channelId)}/schedule", ct);
 
+    /// <summary>GET /channels/:id/programming. A page of the lineup; null when there's no such channel.</summary>
+    public Task<ChannelLineup?> GetChannelLineupAsync(string channelId, int offset, int limit, CancellationToken ct = default) =>
+        GetOrNotFoundAsync<ChannelLineup>(
+            $"channels/{Uri.EscapeDataString(channelId)}/programming?offset={offset}&limit={limit}", ct);
+
     /// <summary>GET /media-sources</summary>
     public async Task<IReadOnlyList<MediaSource>> GetMediaSourcesAsync(CancellationToken ct = default) =>
         await GetAsync<List<MediaSource>>("media-sources", ct).ConfigureAwait(false);

@@ -184,6 +184,79 @@ public sealed class McpProtocolTests(TestAppFactory factory) : IClassFixture<Tes
         Assert.Equal(0, json.RootElement.GetProperty("smartCollections").GetArrayLength());
     }
 
+    private const string TwoChannels = """
+        [{"id":"c3","number":3,"name":"Animation Station","duration":0,"programCount":2,"startTime":0,"stealth":false},
+         {"id":"c5","number":5,"name":"Sam-O-Rama","duration":0,"programCount":1,"startTime":0,"stealth":false}]
+        """;
+
+    [Fact]
+    public async Task Get_channel_schedule_describes_random_slots_by_channel_number()
+    {
+        Stub("channels", TwoChannels);
+        Stub("filler-lists", """[{"id":"f1","name":"Toonami Filler","contentCount":50}]""");
+        // Trimmed from a real response: the slot, plus the show Tunarr embeds for display.
+        Stub("channels/c5/schedule", """
+            {"schedule":{"type":"random","flexPreference":"distribute","maxDays":7,"padMs":300000,"padStyle":"slot",
+              "timeZoneOffset":360,"randomDistribution":"weighted","lockWeights":false,
+              "slots":[{"id":"58dbdd2b","linkMode":"continue","rerunOverflow":"flex",
+                "filler":[{"types":["pre"],"fillerListId":"f1","fillerOrder":"shuffle_prefer_short"}],
+                "cooldownMs":1800000,"durationSpec":{"type":"dynamic","programCount":1},"weight":9.99,"index":0,
+                "order":"ordered_shuffle","direction":"asc","type":"show","showId":"s1","seasonFilter":[],"seasonExcludeFilter":[9],
+                "show":{"uuid":"s1","type":"show","title":"Scrubs","year":2001,"childCount":9,"genres":[]}}]},
+             "rebuildEachCycle":false}
+            """);
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("get_channel_schedule", new Dictionary<string, object?> { ["channel"] = "5" }, cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+        using var json = JsonDocument.Parse(ToolText(result));
+        Assert.Equal("random_slots", json.RootElement.GetProperty("programming").GetString());
+        var slot = json.RootElement.GetProperty("slots")[0];
+        Assert.Equal("Scrubs", slot.GetProperty("title").GetString());
+        Assert.Equal(9, slot.GetProperty("exceptSeasons")[0].GetInt32());
+        Assert.Equal("Toonami Filler: pre", slot.GetProperty("filler")[0].GetString());
+    }
+
+    [Fact]
+    public async Task Get_channel_lineup_finds_the_channel_by_name()
+    {
+        Stub("channels", TwoChannels);
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c3/schedule").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200));
+        _tunarr.Given(Request.Create().WithPath("/api/channels/c3/programming").WithParam("offset", "0").WithParam("limit", "50").UsingGet())
+            .RespondWith(Response.Create().WithBody("""
+                {"name":"Animation Station","number":3,"totalPrograms":2,"startTimeOffsets":[0,1444075],
+                 "lineup":[{"type":"content","id":"p1","durationMs":1444075,"duration":1444075},{"type":"flex","duration":600000}],
+                 "programs":{"p1":{"type":"content","id":"p1","duration":1444075,
+                   "program":{"uuid":"p1","type":"episode","title":"Welcome to Republic City","episodeNumber":1,"state":"ok",
+                     "show":{"uuid":"s1","title":"The Legend of Korra"},"season":{"uuid":"se1","index":1}}}}}
+                """));
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("get_channel_lineup", new Dictionary<string, object?> { ["channel"] = "animation station" },
+            cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+        using var json = JsonDocument.Parse(ToolText(result));
+        Assert.Equal("manual", json.RootElement.GetProperty("programming").GetString());
+        var items = json.RootElement.GetProperty("items");
+        Assert.Equal("The Legend of Korra", items[0].GetProperty("show").GetString());
+        Assert.Equal("flex", items[1].GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task Unknown_channel_lists_the_real_ones()
+    {
+        Stub("channels", TwoChannels);
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("get_channel_schedule", new Dictionary<string, object?> { ["channel"] = "9" }, cancellationToken: Ct);
+
+        Assert.True(result.IsError);
+        Assert.Contains("Channels: 3 Animation Station, 5 Sam-O-Rama.", ToolText(result), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Tunarr_error_is_reported_to_the_model()
     {
