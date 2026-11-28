@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json;
 using TunarrMcp.Tunarr.Models;
 
@@ -29,13 +29,26 @@ public sealed class TunarrClient(HttpClient http)
     public Task<GuideStatus> GetGuideStatusAsync(CancellationToken ct = default) =>
         GetAsync<GuideStatus>("guide/status", ct);
 
-    private async Task<T> GetAsync<T>(string path, CancellationToken ct)
+    /// <summary>GET /channels</summary>
+    public async Task<IReadOnlyList<Channel>> GetChannelsAsync(CancellationToken ct = default) =>
+        await GetAsync<List<Channel>>("channels", ct).ConfigureAwait(false);
+
+    /// <summary>GET /channels/:id/schedule. Null when the channel has no slot schedule.</summary>
+    public Task<ChannelScheduleResponse?> GetChannelScheduleAsync(string channelId, CancellationToken ct = default) =>
+        GetOptionalAsync<ChannelScheduleResponse>($"channels/{Uri.EscapeDataString(channelId)}/schedule", ct);
+
+    private async Task<T> GetAsync<T>(string path, CancellationToken ct) =>
+        await GetOptionalAsync<T>(path, ct).ConfigureAwait(false)
+        ?? throw new TunarrApiException(HttpMethod.Get, path, HttpStatusCode.OK, "Tunarr returned an empty body.");
+
+    /// <summary>Some routes answer "nothing here" with 200 and no body rather than 404; that maps to null.</summary>
+    private async Task<T?> GetOptionalAsync<T>(string path, CancellationToken ct)
     {
         using var response = await http.GetAsync(new Uri(path, UriKind.Relative), ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, HttpMethod.Get, path, ct).ConfigureAwait(false);
 
-        return await response.Content.ReadFromJsonAsync<T>(Json, ct).ConfigureAwait(false)
-               ?? throw new TunarrApiException(HttpMethod.Get, path, response.StatusCode, "Tunarr returned an empty body.");
+        var body = await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+        return body.Length == 0 ? default : JsonSerializer.Deserialize<T>(body, Json);
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, HttpMethod method, string path, CancellationToken ct)

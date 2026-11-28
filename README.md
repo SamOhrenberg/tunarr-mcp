@@ -7,8 +7,14 @@ desktop or mobile, or from Claude Code.
 It runs as one small container next to Tunarr. Tunarr stays private on your Docker network; only this server is exposed,
 behind its own OAuth 2.1 login.
 
-> **Status: early.** Authentication, deployment and the first tool (`system_status`) are done. Guide, library and
-> channel-editing tools are next.
+> **Status: early.** Authentication and deployment are done; library and channel-schedule tools are being added.
+
+## Tools
+
+| Tool | Mode | What it does |
+| --- | --- | --- |
+| `system_status` | read | Tunarr version, failing health checks, scheduled tasks, how far ahead the guide is built |
+| `list_channels` | read | Every channel's number, name and id, and whether it's programmed by hand or by a slot schedule |
 
 ## How it works
 
