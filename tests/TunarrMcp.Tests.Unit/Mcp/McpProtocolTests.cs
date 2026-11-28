@@ -168,6 +168,23 @@ public sealed class McpProtocolTests(TestAppFactory factory) : IClassFixture<Tes
     }
 
     [Fact]
+    public async Task List_collections_returns_all_three_kinds()
+    {
+        Stub("custom-shows", """[{"id":"cs1","name":"TRCPD Movies","contentCount":9,"schedulableContentCount":9,"totalDuration":67703816,"isSyncing":false}]""");
+        Stub("filler-lists", """[{"id":"f1","name":"Toonami Filler","contentCount":50}]""");
+        Stub("smart_collections", "[]");
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("list_collections", cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+        using var json = JsonDocument.Parse(ToolText(result));
+        Assert.Equal("cs1", json.RootElement.GetProperty("customShows")[0].GetProperty("id").GetString());
+        Assert.Equal("f1", json.RootElement.GetProperty("fillerLists")[0].GetProperty("id").GetString());
+        Assert.Equal(0, json.RootElement.GetProperty("smartCollections").GetArrayLength());
+    }
+
+    [Fact]
     public async Task Tunarr_error_is_reported_to_the_model()
     {
         // Only /version fails. 404 is not retried by the resilience handler, so the test stays fast.

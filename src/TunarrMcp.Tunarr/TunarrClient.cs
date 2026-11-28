@@ -92,6 +92,18 @@ public sealed class TunarrClient(HttpClient http)
     public Task<SeasonChildren> GetSeasonEpisodesAsync(string seasonId, CancellationToken ct = default) =>
         GetAsync<SeasonChildren>($"programs/{Uri.EscapeDataString(seasonId)}/children", ct);
 
+    /// <summary>GET /custom-shows</summary>
+    public async Task<IReadOnlyList<CustomShow>> GetCustomShowsAsync(CancellationToken ct = default) =>
+        await GetAsync<List<CustomShow>>("custom-shows", ct).ConfigureAwait(false);
+
+    /// <summary>GET /filler-lists</summary>
+    public async Task<IReadOnlyList<FillerList>> GetFillerListsAsync(CancellationToken ct = default) =>
+        await GetAsync<List<FillerList>>("filler-lists", ct).ConfigureAwait(false);
+
+    /// <summary>GET /smart_collections</summary>
+    public async Task<IReadOnlyList<SmartCollection>> GetSmartCollectionsAsync(CancellationToken ct = default) =>
+        await GetAsync<List<SmartCollection>>("smart_collections", ct).ConfigureAwait(false);
+
     private async Task<T?> GetOrNotFoundAsync<T>(string path, CancellationToken ct) where T : class
     {
         try

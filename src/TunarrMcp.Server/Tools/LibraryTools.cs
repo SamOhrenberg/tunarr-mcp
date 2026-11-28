@@ -74,6 +74,23 @@ public sealed class LibraryTools(TunarrClient tunarr)
         return LibraryShape.From(show, episodes, match, SourceNames(await sourcesTask.ConfigureAwait(false)));
     }
 
+    [McpServerTool(Name = "list_collections", Title = "List collections", ReadOnly = true, Idempotent = true, OpenWorld = false)]
+    [Description("""
+        Tunarr's collections, with ids for schedule slots: custom shows (hand-picked, ordered lists of programs; the
+        way to put movies in a slot), filler lists (bumpers and commercials played between programs or in gaps) and
+        smart collections (saved library searches).
+        """)]
+    public async Task<CollectionList> ListCollections(CancellationToken cancellationToken)
+    {
+        var customShows = tunarr.GetCustomShowsAsync(cancellationToken);
+        var fillerLists = tunarr.GetFillerListsAsync(cancellationToken);
+        var smartCollections = tunarr.GetSmartCollectionsAsync(cancellationToken);
+        await Task.WhenAll(customShows, fillerLists, smartCollections).ConfigureAwait(false);
+
+        return CollectionShape.From(await customShows.ConfigureAwait(false), await fillerLists.ConfigureAwait(false),
+            await smartCollections.ConfigureAwait(false));
+    }
+
     private static string ResolveSource(string source, IReadOnlyList<MediaSource> sources) =>
         sources.FirstOrDefault(s => s.Id == source || string.Equals(s.Name, source, StringComparison.OrdinalIgnoreCase))?.Id
         ?? throw new McpException($"No media source named '{source}'. Sources: {string.Join(", ", sources.Select(s => s.Name))}.");
