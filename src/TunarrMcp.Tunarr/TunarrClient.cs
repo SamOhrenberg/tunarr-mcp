@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using TunarrMcp.Tunarr.Models;
 
@@ -49,6 +50,50 @@ public sealed class TunarrClient(HttpClient http)
     public Task<ChannelLineup?> GetChannelLineupAsync(string channelId, int offset, int limit, CancellationToken ct = default) =>
         GetOrNotFoundAsync<ChannelLineup>(
             $"channels/{Uri.EscapeDataString(channelId)}/programming?offset={offset}&limit={limit}", ct);
+
+    /// <summary>
+    /// GET /channels/:id/programming, whole: just the lineup items, as Tunarr's JSON. They're the same shape
+    /// <see cref="ReplaceLineupAsync"/> sends back, so this is what a snapshot stores.
+    /// </summary>
+    public async Task<string> GetLineupItemsJsonAsync(string channelId, CancellationToken ct = default)
+    {
+        var path = $"channels/{Uri.EscapeDataString(channelId)}/programming";
+        using var response = await http.GetAsync(new Uri(path, UriKind.Relative), ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, HttpMethod.Get, path, ct).ConfigureAwait(false);
+
+        await using var body = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var json = await JsonDocument.ParseAsync(body, cancellationToken: ct).ConfigureAwait(false);
+        return json.RootElement.TryGetProperty("lineup", out var lineup) && lineup.ValueKind == JsonValueKind.Array
+            ? lineup.GetRawText()
+            : throw new TunarrApiException(HttpMethod.Get, path, response.StatusCode, "The response has no lineup.");
+    }
+
+    /// <summary>
+    /// POST /channels/:id/programming, manual, append: adds programs at the end of the lineup, like "Add media" in
+    /// Tunarr's UI. The programs need their real durations (from <see cref="GetProgramAsync"/>).
+    /// </summary>
+    public Task<SavedLineup> AppendToLineupAsync(string channelId, IReadOnlyList<ProgramDetails> programs, CancellationToken ct = default)
+    {
+        var lineup = new JsonArray(programs
+            .Select(p => (JsonNode)new JsonObject { ["type"] = "content", ["id"] = p.Uuid, ["duration"] = p.Duration })
+            .ToArray());
+        return SaveManualLineupAsync(channelId, lineup, append: true, ct);
+    }
+
+    /// <summary>POST /channels/:id/programming, manual: replaces the lineup with items from <see cref="GetLineupItemsJsonAsync"/>.</summary>
+    public Task<SavedLineup> ReplaceLineupAsync(string channelId, string lineupItemsJson, CancellationToken ct = default) =>
+        SaveManualLineupAsync(channelId, JsonNode.Parse(lineupItemsJson)!.AsArray(), append: false, ct);
+
+    private async Task<SavedLineup> SaveManualLineupAsync(string channelId, JsonArray lineup, bool append, CancellationToken ct)
+    {
+        var body = new JsonObject { ["type"] = "manual", ["lineup"] = lineup, ["append"] = append };
+        return await PostAsync<JsonObject, SavedLineup>($"channels/{Uri.EscapeDataString(channelId)}/programming", body, ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>GET /programs/:id. Null for anything that isn't a playable program (shows and seasons included).</summary>
+    public Task<ProgramDetails?> GetProgramAsync(string programId, CancellationToken ct = default) =>
+        GetOrNotFoundAsync<ProgramDetails>($"programs/{Uri.EscapeDataString(programId)}", ct);
 
     /// <summary>GET /media-sources</summary>
     public async Task<IReadOnlyList<MediaSource>> GetMediaSourcesAsync(CancellationToken ct = default) =>

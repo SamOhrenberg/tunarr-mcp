@@ -6,7 +6,9 @@ using ModelContextProtocol;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using TunarrMcp.Server.Changes;
 using TunarrMcp.Server.Configuration;
+using TunarrMcp.Server.Tools;
 
 namespace TunarrMcp.Server.Hosting;
 
@@ -27,6 +29,8 @@ internal static class McpServerRegistration
         var mode = configuration.GetSection(ToolsOptions.Section).Get<ToolsOptions>()?.Mode ?? ToolsMode.Read;
 
         services.TryAddSingleton(TimeProvider.System);
+        services.AddChangeLog();
+        services.AddSingleton<WritableChannels>();
 
         services.AddMcpServer(o => o.ServerInfo = new Implementation
             {

@@ -125,13 +125,22 @@ public sealed record ChannelLineup(
     IReadOnlyDictionary<string, LineupProgramEntry>? Programs,
     IReadOnlyList<double>? StartTimeOffsets);
 
+/// <summary>
+/// What POST /channels/:id/programming answers: the whole new lineup. Only the items and total are read;
+/// the program details that come with them are skipped.
+/// </summary>
+public sealed record SavedLineup(int TotalPrograms, IReadOnlyList<LineupItem> Lineup);
+
 /// <summary>Type is content, custom (from a custom show), filler, redirect (to another channel) or flex (a gap).</summary>
 public sealed record LineupItem(string Type, string? Id, double Duration, string? ChannelName, int? ChannelNumber);
 
-public sealed record LineupProgramEntry(LineupProgram? Program);
+public sealed record LineupProgramEntry(ProgramDetails? Program);
 
-/// <summary>Type is movie, episode, other_video, music_video or track. State is "ok" or e.g. "missing".</summary>
-public sealed record LineupProgram(
+/// <summary>
+/// A playable program, as GET /programs/:id and lineup pages return it. Type is movie, episode, other_video,
+/// music_video or track. State is "ok" or e.g. "missing". Duration is in ms.
+/// </summary>
+public sealed record ProgramDetails(
     string Uuid,
     string Type,
     string Title,
@@ -139,4 +148,7 @@ public sealed record LineupProgram(
     int? EpisodeNumber,
     SearchHitParent? Show,
     SearchHitParent? Season,
-    string? State);
+    string? State)
+{
+    public double? Duration { get; init; }
+}

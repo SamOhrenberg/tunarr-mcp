@@ -20,6 +20,11 @@ behind its own OAuth 2.1 login.
 | `list_collections` | read | Custom shows, filler lists and smart collections, with their ids |
 | `get_channel_schedule` | read | A channel's time-slot or random-slot schedule in plain terms |
 | `get_channel_lineup` | read | The programs a channel plays, in order, a page at a time |
+| `add_to_channel` | write | Append specific episodes or movies to a channel's lineup |
+| `undo_last_change` | write | Put a channel back the way it was before the last change a tool made |
+
+Every write snapshots the channel first, so `undo_last_change` can restore it exactly (the last 20 changes per
+channel). Undo refuses if the channel was edited some other way since, unless told to force it.
 
 ## How it works
 
@@ -67,12 +72,13 @@ variant for Docker secrets.
 | `Tunarr__BaseUrl` | `http://tunarr:8000/api/` | Tunarr's API |
 | `Tunarr__BasicAuthUser`, `Tunarr__BasicAuthPassword(File)` | unset | Only if Tunarr has basic auth turned on |
 | `Tools__Mode` | `read` | `read`, `write` or `all` |
+| `Tools__WritableChannels` | every channel | Comma-separated channel numbers or ids that write tools may change |
 | `Auth__Mode` | `Embedded` | `Embedded`, or `None` for LAN/local testing (also needs `Auth__AllowInsecureNone=true`) |
 | `Auth__AdminUser` | required | Admin username |
 | `Auth__AdminPasswordHash(File)`, `Auth__TotpSecret(File)` | required | Written by `setup` |
 | `Auth__AllowedRedirectUris` | Claude's callbacks | Comma-separated; http loopback entries match any port |
 | `Auth__AllowedIpRanges` | unset | Optional comma-separated CIDR allowlist for `/mcp` |
-| `Data__Path` | `/data` | SQLite database and keys; mount a volume here |
+| `Data__Path` | `/data` | SQLite databases (auth, undo history) and keys; mount a volume here |
 | `TZ` | UTC | Time zone for times in tool output |
 
 ## Development

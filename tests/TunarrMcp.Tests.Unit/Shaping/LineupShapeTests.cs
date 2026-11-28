@@ -14,7 +14,7 @@ public sealed class LineupShapeTests
     [Fact]
     public void Episodes_name_their_show_season_and_number()
     {
-        var program = new LineupProgram("p1", "episode", "Welcome to Republic City", 2012, 1,
+        var program = new ProgramDetails("p1", "episode", "Welcome to Republic City", 2012, 1,
             new SearchHitParent("s1", "The Legend of Korra", null), new SearchHitParent("se1", "Season 1", 1), "ok");
         var lineup = Lineup(183, [new LineupItem("content", "p1", 1_444_075, null, null)],
             new() { ["p1"] = new LineupProgramEntry(program) }, offsets: [5_400_000]);
@@ -36,7 +36,7 @@ public sealed class LineupShapeTests
     [Fact]
     public void Movies_leave_episode_fields_out_and_missing_files_are_flagged()
     {
-        var program = new LineupProgram("m1", "movie", "Castle in the Sky", 1986, null, null, null, "missing");
+        var program = new ProgramDetails("m1", "movie", "Castle in the Sky", 1986, null, null, null, "missing");
         var lineup = Lineup(1, [new LineupItem("content", "m1", 7_471_260, null, null)], new() { ["m1"] = new LineupProgramEntry(program) });
 
         var item = Assert.Single(LineupShape.From(Channel, "manual", lineup, 0).Items);
