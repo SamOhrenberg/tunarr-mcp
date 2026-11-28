@@ -21,11 +21,12 @@ behind its own OAuth 2.1 login.
 | `get_channel_schedule` | read | A channel's time-slot or random-slot schedule in plain terms |
 | `get_channel_lineup` | read | The programs a channel plays, in order, a page at a time |
 | `preview_schedule` | read | What a time-slot or random-slot schedule would air from now on, without saving it |
+| `set_channel_schedule` | write | Save a time-slot or random-slot schedule; Tunarr regenerates the lineup from it |
 | `add_to_channel` | write | Append specific episodes or movies to a channel's lineup |
 | `undo_last_change` | write | Put a channel back the way it was before the last change a tool made |
 
-Every write snapshots the channel first, so `undo_last_change` can restore it exactly (the last 20 changes per
-channel). Undo refuses if the channel was edited some other way since, unless told to force it.
+Every write snapshots the channel first, so `undo_last_change` can restore it exactly, schedule and lineup (the
+last 20 changes per channel). Undo refuses if the channel was edited some other way since, unless told to force it.
 
 ## How it works
 

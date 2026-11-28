@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using TunarrMcp.Server.Changes;
@@ -83,7 +84,7 @@ public sealed class LineupWriteTools(TunarrClient tunarr, ChangeLog changes, Wri
                 ChannelName = target.Name,
                 Tool = "add_to_channel",
                 Summary = programs.Count == 1 ? $"Added {added[0]}" : $"Added {programs.Count} programs ({minutes} min), starting with {added[0]}",
-                Before = JsonSerializer.Serialize(new ChannelState(JsonDocument.Parse(before).RootElement), JsonSerializerOptions.Web),
+                Before = JsonSerializer.Serialize(new ChannelState(JsonSerializer.Deserialize<JsonElement>(before)), JsonSerializerOptions.Web),
                 AfterFingerprint = LineupFingerprint.Of(saved.Lineup),
             }, cancellationToken).ConfigureAwait(false);
 
@@ -97,7 +98,7 @@ public sealed class LineupWriteTools(TunarrClient tunarr, ChangeLog changes, Wri
     [McpServerTool(Name = "undo_last_change", Title = "Undo the last change", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description("""
         Reverts the most recent change a tool made to a channel (or to any channel), restoring its lineup exactly as it
-        was. Call again to step further back. Refuses if the channel was edited some other way since, unless force is
+        was, and its schedule if the change saved one. Call again to step further back. Refuses if the channel was edited some other way since, unless force is
         set, because those edits would be lost too.
         """)]
     public async Task<UndoResult> UndoLastChange(
@@ -127,6 +128,16 @@ public sealed class LineupWriteTools(TunarrClient tunarr, ChangeLog changes, Wri
             }
 
             var state = JsonSerializer.Deserialize<ChannelState>(change.Before, JsonSerializerOptions.Web)!;
+            if (state.ScheduleCaptured)
+            {
+                // Put the schedule back first. Saving it regenerates the lineup, which the exact snapshot then
+                // replaces; a hand-edit keeps the stored schedule, so both end up as they were.
+                if (state.Schedule is { } schedule)
+                    await tunarr.SaveScheduleAsync(change.ChannelId, JsonNode.Parse(schedule.GetRawText())!.AsObject(), cancellationToken).ConfigureAwait(false);
+                else
+                    await tunarr.DeleteChannelScheduleAsync(change.ChannelId, cancellationToken).ConfigureAwait(false);
+            }
+
             var restored = await tunarr.ReplaceLineupAsync(change.ChannelId, state.Lineup.GetRawText(), cancellationToken).ConfigureAwait(false);
             await changes.MarkUndoneAsync(change.Id, cancellationToken).ConfigureAwait(false);
 

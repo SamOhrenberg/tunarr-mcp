@@ -124,6 +124,15 @@ public sealed class TunarrClient(HttpClient http)
         return copy;
     }
 
+    /// <summary>A copy of a schedule as read, with every slot stripped of its display fields, ready to save again.</summary>
+    public static JsonObject StripScheduleDisplayFields(JsonObject schedule)
+    {
+        var copy = (JsonObject)schedule.DeepClone();
+        if (copy["slots"] is JsonArray slots)
+            copy["slots"] = new JsonArray(slots.OfType<JsonObject>().Select(s => (JsonNode)StripSlotDisplayFields(s)).ToArray());
+        return copy;
+    }
+
     /// <summary>
     /// POST /channels/:id/schedule-time-slots or /schedule-slots (by the schedule's type): generates the lineup a
     /// schedule would produce, without saving anything. Tunarr rejects invalid schedules with a 400 and a reason.
@@ -133,6 +142,26 @@ public sealed class TunarrClient(HttpClient http)
         var route = (string?)schedule["type"] == "time" ? "schedule-time-slots" : "schedule-slots";
         return PostAsync<JsonObject, SchedulePreview>($"channels/{Uri.EscapeDataString(channelId)}/{route}",
             new JsonObject { ["schedule"] = schedule.DeepClone() }, ct);
+    }
+
+    /// <summary>
+    /// POST /channels/:id/programming with a time or random schedule: saves the schedule and replaces the lineup with
+    /// one Tunarr generates from it. Slots pull their content from the library themselves, so no program pool is sent.
+    /// </summary>
+    public Task<SavedLineup> SaveScheduleAsync(string channelId, JsonObject schedule, CancellationToken ct = default) =>
+        PostAsync<JsonObject, SavedLineup>($"channels/{Uri.EscapeDataString(channelId)}/programming", new JsonObject
+        {
+            ["type"] = (string?)schedule["type"],
+            ["programs"] = new JsonArray(),
+            ["schedule"] = schedule.DeepClone(),
+        }, ct);
+
+    /// <summary>DELETE /channels/:id/schedule: the channel keeps its lineup and becomes programmed by hand.</summary>
+    public async Task DeleteChannelScheduleAsync(string channelId, CancellationToken ct = default)
+    {
+        var path = $"channels/{Uri.EscapeDataString(channelId)}/schedule";
+        using var response = await http.DeleteAsync(new Uri(path, UriKind.Relative), ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, HttpMethod.Delete, path, ct).ConfigureAwait(false);
     }
 
     /// <summary>GET /media-sources</summary>

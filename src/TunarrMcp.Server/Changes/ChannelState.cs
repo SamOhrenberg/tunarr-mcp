@@ -6,8 +6,17 @@ using TunarrMcp.Tunarr.Models;
 
 namespace TunarrMcp.Server.Changes;
 
-/// <summary>What a snapshot keeps of a channel. Lineup is Tunarr's lineup items, as JSON, exactly as read.</summary>
-public sealed record ChannelState(JsonElement Lineup);
+/// <summary>
+/// What a snapshot keeps of a channel. Lineup is Tunarr's lineup items, as JSON, exactly as read. Changes that can
+/// alter the schedule also capture it (ScheduleCaptured): Schedule is then the saved schedule without display
+/// fields, or null when the channel had none. Lineup-only changes leave the schedule alone, so they don't capture it.
+/// </summary>
+public sealed record ChannelState(JsonElement Lineup)
+{
+    public bool ScheduleCaptured { get; init; }
+
+    public JsonElement? Schedule { get; init; }
+}
 
 /// <summary>
 /// A hash of a lineup's items (type, program and whole-ms duration, in order). Two lineups with the same
